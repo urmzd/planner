@@ -45,8 +45,11 @@ class User:
         self.generations += 1
 
     def getCredits(self, code):
+        username = input("Username: ")
+        password = input("Password: ")
+
         client = MongoClient(
-            "mongodb+srv://urmzd:Booklover12@coursica-ylslv.mongodb.net/test?retryWrites=true&w=majority")
+            "mongodb+srv://{}:{}@coursica-ylslv.mongodb.net/test?retryWrites=true&w=majority".format(username, password))
         db = client.Coursica
         collection = db.DSU
 
