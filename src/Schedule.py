@@ -1,66 +1,64 @@
 from Credit import Credit
-from Class import Class
-
+from Course import Course
+from Utilities import isDisjoint, union, intersection
+from random import choice
 
 class Schedule:
 
-    def __init__(self, codes, creditHours):
-        self.codes = set(codes)
-        self.creditHours = set(creditHours)
-        self.fitness = -1
+    def __init__(self, *creditHours):
+        self.creditHours = list(creditHours)
+        self.codes = []
+        for credit in self.creditHours:
+            self.codes.append(credit.code)
+        self.fitness = 0
+
+    def crossover(self, *others):
+        creditHours = union(self.creditHours, *others)
+
+        return Schedule(*creditHours)
 
     def evaluate(self):
+        
+        if isDisjoint(self.codes) and isDisjoint(self.creditHours):
 
-        if self.isConflicted():
-            self.fitness = 0
-        else:
-            self.fitness = 1
+            days = {}
 
-    def crossover(self, scheduleB):
-        creditHours = self.creditHours.union(scheduleB.creditHours)
-        codes = self.codes.union(scheduleB.codes)
-
-        return Schedule(codes, creditHours)
-
-    def isConflicted(self, schedule=None):
-
-        if schedule is None:
-            creditHours = self.creditHours
-        else:
-
-            if not self.codes.difference(schedule).codes:
-                # Check to see if there is no difference between two sets.
-                return True
-            else:
-                creditHours = self.creditHours.union(schedule.creditHours)
-
-        days = {}
-
-        for credit in creditHours:
-            for course in credit.courses:
-                for day in course.days:
+            for credit in self.creditHours:
+                for day, times in credit.days.items():
                     if day not in days:
                         days[day] = []
+                    
+                    if any(time in days[day] for time in times):
+                        fitness = 0
+                        return
+                    
+                    days[day].extend(times)
+            
+            for day in days:
+                days[day] = sorted(days[day], key=lambda time: time[0])
 
-                    if course.time in days[day]:
-                        return True
-                    else:
-                        days[day].append(course.time)
+                for index in range(1, len(days[day])):
+                    if days[day][index - 1][1] > days[day][index][0]:
+                        self.fitness = 0
+                        return
 
-        for day in days:
-            days[day] = sorted(days[day], key=lambda time: time[0])
+            self.fitness = 1
+        else:
+            self.fitness = 0
 
-            for index in range(1, len(days[day])):
-                if days[day][index - 1][1] > days[day][index][0]:
-                    return True
-
-        return False
+    """def swap(self, credit):
+        self.creditHours.remove(choice(self.creditHours))
+        self.creditHours.append(credit)
+        self.codes = []
+        for credit in self.creditHours:
+            self.codes.append(credit.code)"""
 
     def __repr__(self):
-        return "{} : {}".format(self.codes, self.creditHours)
-
+        return "{}".format(self.creditHours)
+    
     def __hash__(self):
-        return hash((repr(self.codes), repr(self.creditHours)))
+
+        return hash(tuple(sorted(self.codes)))
 
     def __eq__(self, other):
-        return self.codes == other.codes and self.creditHours == other.creditHours
+        return intersection(self.codes, other.codes) and intersection(self.creditHours, other.creditHours)

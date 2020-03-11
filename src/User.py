@@ -1,136 +1,118 @@
+import json
 from pymongo import MongoClient
-from Class import Class
+from Course import Course
 from Credit import Credit
 from Schedule import Schedule
 from itertools import product, combinations
-from math import ceil
 
 class User:
 
-    def __init__(self, *courses):
-        self.courses = set(courses)  # String of Class Names, etc..
-        self.maxCourses = len(self.courses)  # Number of categories to reach.
-        self.population = set()
-        self.generations = 0
-
-    def evaluate(self):
-
-        for schedule in self.population:
-            schedule.evaluate()
-
-    def select(self):
-        matingPool = set()
-        newPopulation = set()
-
-        for parent in self.population:
-            if parent.fitness == 1:
-                matingPool.add(parent)
-
-        combos = list(combinations(matingPool, 2))
-
-        for combination in combos:
-            if combination[0].codes != combination[1].codes:
-                crossover = self.crossover(combination[0], combination[1])
-                newPopulation.add(crossover)
-
-        self.population = newPopulation
-
-    def crossover(self, scheduleA, scheduleB):
-
-        return scheduleA.crossover(scheduleB)
-
-    def draw(self):
-        self.select()
-        self.evaluate()
-        self.generations += 1
+    def __init__(self, semester, *codes):
+        self.codes = codes
+        self.semester = semester
+        self.creditHours = []
+        self.population = []
 
     def getCredits(self, code):
-        username = input("Username: ")
-        password = input("Password: ")
-
-        client = MongoClient(
-            "mongodb+srv://{}:{}@coursica-ylslv.mongodb.net/test?retryWrites=true&w=majority".format(username, password))
-        db = client.Coursica
-        collection = db.DSU
-
-        courses = collection.find({"code": code})
+        
+        with open('config.json') as config:
+            cred = json.load(config)
+            
+        client = MongoClient(cred['connection'])
 
         sections = []
         tutorials = []
         labs = []
 
-        for course in courses:
+        results = client[cred['database']][cred['collection']].find({"code": "{} {}".format(code, self.semester)})
+        
+        for course in results:  
+            del course['_id']
 
-            del course["_id"]
-
-            if course['section'][0] == "B":
-                labs.append(Class(**course))
-            elif course['section'][0] == "T":
-                tutorials.append(Class(**course))
+            if course['section'][0] == "T":
+                tutorials.append(Course(**course))
+            elif course['section'][0] == "B":
+                labs.append(Course(**course))
             else:
-                sections.append(Class(**course))
-
-        classes = []
+                sections.append(Course(**course))
+        
+        courses = []
 
         if sections:
-            classes.append(sections)
+            courses.append(sections)
+        
+        if labs:
+            courses.append(labs)
 
         if tutorials:
-            classes.append(tutorials)
+            courses.append(tutorials)
 
-        if labs:
-            classes.append(labs)
+        creditHours = []
 
-        credit = []
+        for courses in product(*courses):
+            creditHours.append(Credit(code, *courses))
 
-        for courses in product(*classes):
-            credit.append(Credit(code, *courses))
-
-        return credit
+        return creditHours
 
     def generateInitialPopulation(self):
-        initial_population = set()
+        for code in self.codes:
+            creditHours = self.getCredits(code)
+            self.creditHours.append(creditHours)
 
-        for courses in self.courses:
-            creditHours = self.getCredits(courses)
+    def crossover(self, *schedules):
+        return self.crossover(*schedules)
 
-            for credit in creditHours:
-                initial_population.add(Schedule([courses], [credit]))
+    def evaluate(self, schedules):
+        for schedule in schedules:
+            schedule.evaluate()
 
-        self.population = initial_population
-        self.evaluate()
+    def select(self):
+       
+        combos = list(product(*self.creditHours))
+        
+        matingPool = []
+        for courses in combos:
+            matingPool.append(Schedule(*courses))
+        
+        self.evaluate(matingPool)
 
-    def output(self):
-        schedules = []
+        for schedule in matingPool:
+            if schedule.fitness == 1:
+                self.population.append(schedule)
 
+    """def mutate(self, schedule):
+        
+        pass"""
+    
+    """def terminate(self):
         if self.population:
             for schedule in self.population:
-                crns = []
+                if len(schedule) == len(self.codes):
+                    return True
+        else:
+            return True"""
 
+    def draw(self):
+        self.generateInitialPopulation()
+        self.select()
+        
+        if self.population:
+            results = []
+            for schedule in self.population:
+                crns = []
                 for credit in schedule.creditHours:
                     for course in credit.courses:
                         crns.append(course.crn)
 
-                schedules.append(crns)
+                results.append(crns)
         else:
-            return "Failure"
-
-        return schedules
-
-    def isComplete(self):
+            result = "There are no possible options with the current set provided."
         
-        if self.generations >= ceil(self.maxCourses / 2):
-            return True
+        print(self.population)
         
-        if not self.population:
-            return True
-        
-        return False
+        #self.mutate()
+        #self.terminate()
 
-    def getSchedules(self):
-        self.generateInitialPopulation()
 
-        while not self.isComplete():
-            self.draw()
-
-        return self.output()
+user = User("S", "CSCI1105")
+user.draw()
