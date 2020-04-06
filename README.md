@@ -1,4 +1,3 @@
 # Course Planner
 
-Genetic Algorithm
-REST API
+Creates a schedule given a set of courses using aspect of the genetic algorithm.
